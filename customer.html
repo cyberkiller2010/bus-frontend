@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>BusTicket – Book Your Ride</title>
+    <style>
+        *{margin:0;padding:0;box-sizing:border-box;}
+        body{font-family:system-ui;background:#f8f9fc;padding:1rem;color:#1e2a3a;}
+        .header{background:white;border-radius:28px;padding:1rem 1.5rem;margin-bottom:2rem;display:flex;align-items:center;gap:1rem;box-shadow:0 2px 12px rgba(0,0,0,0.04);}
+        .logo-circle{width:44px;height:44px;background:#ff7e00;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:1.6rem;color:white;}
+        .app-title{font-size:1.6rem;font-weight:700;background:linear-gradient(135deg,#ff7e00,#e05e00);background-clip:text;-webkit-background-clip:text;color:transparent;}
+        .bus-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:1.5rem;}
+        .bus-card{background:white;border-radius:28px;padding:1.5rem;box-shadow:0 4px 12px rgba(0,0,0,0.04);transition:transform 0.2s;}
+        .bus-card:hover{transform:translateY(-4px);}
+        .company-logo{width:64px;height:64px;border-radius:50%;object-fit:cover;margin-bottom:0.5rem;}
+        .company-name{font-size:1.2rem;font-weight:700;margin-bottom:0.2rem;}
+        .route{color:#334155;margin-bottom:0.5rem;}
+        .price{font-size:1.3rem;font-weight:700;color:#ff7e00;margin:0.5rem 0;}
+        .seat-counter{background:#fef3c7;display:inline-block;padding:0.2rem 0.6rem;border-radius:20px;font-size:0.85rem;margin-bottom:0.5rem;}
+        .book-btn{background:#ff7e00;color:white;border:none;width:100%;padding:0.75rem;border-radius:40px;font-weight:600;cursor:pointer;transition:background 0.2s;}
+        .book-btn:hover{background:#e66900;}
+        .modal{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);backdrop-filter:blur(4px);justify-content:center;align-items:center;z-index:1000;}
+        .modal-content{background:white;border-radius:32px;padding:1.5rem;width:90%;max-width:480px;}
+        .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#1e293b;color:white;padding:0.75rem 1.5rem;border-radius:40px;font-size:0.85rem;display:none;}
+        @media (max-width:640px){.bus-grid{grid-template-columns:1fr;}}
+    </style>
+    <script src="https://www.gstatic.com/firebasejs/10.5.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.5.0/firebase-firestore-compat.js"></script>
+</head>
+<body>
+<div class="header">
+    <div class="logo-circle">🚌</div>
+    <div class="app-title">BusTicket</div>
+</div>
+<div class="bus-grid" id="results"></div>
+
+<!-- Payment Modal -->
+<div id="paymentModal" class="modal">
+    <div class="modal-content">
+        <h2 style="margin-bottom:1rem;">Complete Booking</h2>
+        <div id="paymentBusInfo" style="background:#f8fafc; padding:0.75rem; border-radius:20px; margin-bottom:1rem;"></div>
+        <div style="margin-bottom:1rem;">
+            <label>Number of seats (max 6)</label>
+            <input type="number" id="seatCount" min="1" max="6" value="1" style="width:100%; padding:0.75rem; border-radius:24px; border:1px solid #ddd; margin-top:0.5rem;">
+            <div id="seatAvailabilityWarning" style="font-size:0.8rem; color:#e66900;"></div>
+        </div>
+        <label>Mobile Money Provider</label>
+        <select id="mobileMoneyProvider" style="width:100%; padding:0.75rem; border-radius:24px; border:1px solid #ddd; margin-bottom:1rem;">
+            <option value="mtn">MTN Mobile Money</option>
+            <option value="airtel">Airtel Money</option>
+            <option value="zamtel">Zamtel Kwik</option>
+        </select>
+        <input type="tel" id="phoneNumber" placeholder="Phone number" style="width:100%; padding:0.75rem; border-radius:24px; border:1px solid #ddd; margin-bottom:1rem;">
+        <input type="text" id="passengerName" placeholder="Full name" style="width:100%; padding:0.75rem; border-radius:24px; border:1px solid #ddd; margin-bottom:1rem;">
+        <p style="font-size:1.2rem; font-weight:bold;">Total: $<span id="paymentTotal">0</span></p>
+        <div style="display:flex; gap:0.75rem; margin-top:1rem;">
+            <button onclick="confirmBooking()" style="flex:1; background:#ff7e00; color:white; border:none; padding:0.75rem; border-radius:40px;">Confirm</button>
+            <button onclick="closePaymentModal()" style="flex:1; background:#e2e8f0; border:none; border-radius:40px;">Cancel</button>
+        </div>
+    </div>
+</div>
+
+<!-- Code Modal -->
+<div id="codeModal" class="modal">
+    <div class="modal-content" style="text-align:center;">
+        <h2>✅ Booking Confirmed</h2>
+        <p>Your unique 28‑digit travel code:</p>
+        <div id="uniqueCodeDisplay" style="background:#f1f5f9; padding:0.75rem; border-radius:24px; font-family:monospace; word-break:break-all; margin:1rem 0;">——</div>
+        <p>Present this code at the border.</p>
+        <p style="font-size:0.85rem;">📱 An SMS has been sent to your phone.</p>
+        <button onclick="closeCodeModal()" style="background:#ff7e00; color:white; border:none; padding:0.75rem 2rem; border-radius:40px; margin-top:1rem;">Close</button>
+    </div>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script>
+    // ========== YOUR FIREBASE CONFIG ==========
+    const firebaseConfig = {
+        apiKey: "AIzaSyCwChD7c9qEyMJmqYx-EdPaa-eu553EG3w",
+        authDomain: "bus-ticket-live.firebaseapp.com",
+        projectId: "bus-ticket-live",
+        storageBucket: "bus-ticket-live.firebasestorage.app",
+        messagingSenderId: "139084281645",
+        appId: "1:139084281645:web:41f0fd868b3bb7ee2c05a4"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+
+    let allBuses = [];
+    let selectedBus = null;
+    let currentAvailableSeats = 0;
+
+    async function loadBuses() {
+        const snapshot = await db.collection('buses').where('suspended', '==', false).get();
+        allBuses = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        displayBuses();
+    }
+
+    function displayBuses() {
+        const container = document.getElementById('results');
+        if (!allBuses.length) {
+            container.innerHTML = '<div style="text-align:center; padding:2rem;">No buses available.</div>';
+            return;
+        }
+        container.innerHTML = allBuses.map(bus => `
+            <div class="bus-card">
+                <div style="display:flex; gap:1rem;">
+                    <img class="company-logo" src="${bus.logo || 'https://via.placeholder.com/64'}" onerror="this.src='https://via.placeholder.com/64'">
+                    <div style="flex:1;">
+                        <div class="company-name">${escapeHtml(bus.company)}</div>
+                        <div class="route">${escapeHtml(bus.from)} → ${escapeHtml(bus.to)} | ${bus.departure} | ${bus.duration}</div>
+                        <div class="seat-counter">💺 Seats available: ${bus.availableSeats} / ${bus.totalSeats}</div>
+                        <div class="price">$${bus.price} <span style="font-size:0.8rem; font-weight:normal;">per seat</span></div>
+                        <button class="book-btn" onclick="openBooking('${bus.id}')">Book now</button>
+                    </div>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    function openBooking(busId) {
+        selectedBus = allBuses.find(b => b.id === busId);
+        if (!selectedBus) return;
+        currentAvailableSeats = selectedBus.availableSeats;
+        document.getElementById('paymentBusInfo').innerHTML = `${selectedBus.company} | ${selectedBus.from} → ${selectedBus.to} | Departure: ${selectedBus.departure}`;
+        const seatInput = document.getElementById('seatCount');
+        seatInput.max = Math.min(6, currentAvailableSeats);
+        seatInput.value = 1;
+        const warnSpan = document.getElementById('seatAvailabilityWarning');
+        if (currentAvailableSeats < 1) {
+            warnSpan.innerText = "Sorry, this bus is full.";
+            seatInput.disabled = true;
+        } else {
+            warnSpan.innerText = `Up to ${Math.min(6, currentAvailableSeats)} seats available.`;
+            seatInput.disabled = false;
+        }
+        updateTotalPrice();
+        document.getElementById('paymentModal').style.display = 'flex';
+    }
+
+    function updateTotalPrice() {
+        const seats = parseInt(document.getElementById('seatCount').value) || 0;
+        document.getElementById('paymentTotal').innerText = seats * selectedBus.price;
+    }
+    document.getElementById('seatCount').addEventListener('input', updateTotalPrice);
+
+    function generate28DigitCode() {
+        return Math.random().toString().slice(2, 30).padEnd(28, '0');
+    }
+
+    async function confirmBooking() {
+        const seats = parseInt(document.getElementById('seatCount').value);
+        const phone = document.getElementById('phoneNumber').value.trim();
+        const name = document.getElementById('passengerName').value.trim();
+        const provider = document.getElementById('mobileMoneyProvider').value;
+        if (!name || !phone) { showToast("Enter name and phone number"); return; }
+        if (seats < 1 || seats > currentAvailableSeats) { showToast(`Only ${currentAvailableSeats} seat(s) available`); return; }
+
+        const code = generate28DigitCode();
+        const total = seats * selectedBus.price;
+
+        const bookingRef = db.collection('bookings').doc();
+        await bookingRef.set({
+            busId: selectedBus.id,
+            stationId: selectedBus.stationId,
+            passengerName: name,
+            phone,
+            seats,
+            provider,
+            total,
+            code,
+            presented: false,
+            createdAt: new Date().toISOString()
+        });
+
+        await db.collection('buses').doc(selectedBus.id).update({
+            availableSeats: currentAvailableSeats - seats
+        });
+
+        document.getElementById('uniqueCodeDisplay').innerText = code;
+        closePaymentModal();
+        showToast(`📱 SMS sent to ${phone} with your booking code.`);
+        document.getElementById('codeModal').style.display = 'flex';
+        loadBuses();
+    }
+
+    function closePaymentModal() { document.getElementById('paymentModal').style.display = 'none'; }
+    function closeCodeModal() { document.getElementById('codeModal').style.display = 'none'; }
+    function showToast(msg) {
+        const toast = document.getElementById('toast');
+        toast.innerText = msg;
+        toast.style.display = 'block';
+        setTimeout(() => toast.style.display = 'none', 3000);
+    }
+    function escapeHtml(str) {
+        if (!str) return '';
+        return str.replace(/[&<>]/g, m => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;' }[m] || m));
+    }
+
+    loadBuses();
+</script>
+</body>
+</html>
