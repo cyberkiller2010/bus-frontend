@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>Company Portal | BusTicket</title>
+    <style>
+        *{margin:0;padding:0;box-sizing:border-box;}
+        body{font-family:'Inter',system-ui;background:#f8fafc;color:#0f172a;padding-bottom:80px;}
+        .header{background:white;border-bottom:1px solid #e2e8f0;padding:0.8rem 1.5rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:1rem;position:sticky;top:0;z-index:10;}
+        .logo-area{display:flex;align-items:center;gap:0.75rem;}
+        .logo-img{width:36px;height:36px;background:#1877f2;border-radius:10px;display:flex;align-items:center;justify-content:center;color:white;font-size:1.2rem;font-weight:bold;}
+        .site-title{font-size:1.2rem;font-weight:600;}
+        .bottom-nav{position:fixed;bottom:0;left:0;width:100%;background:white;display:flex;justify-content:space-around;padding:0.5rem 1rem;border-top:1px solid #e2e8f0;z-index:100;}
+        .nav-item{background:none;border:none;cursor:pointer;padding:0.4rem 0.8rem;border-radius:12px;color:#64748b;font-size:0.8rem;font-weight:500;}
+        .nav-item.active{color:#1877f2;background:#e7f3ff;}
+        .panel{display:none;padding:1.5rem;max-width:1280px;margin:0 auto;}
+        .panel.active-panel{display:block;}
+        .card{background:white;border-radius:24px;padding:1.5rem;margin-bottom:1.5rem;border:1px solid #e2e8f0;}
+        .stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:1rem;margin-bottom:1.5rem;}
+        .stat-card{background:#f8fafc;border-radius:20px;padding:1rem;text-align:center;border:1px solid #e2e8f0;}
+        .stat-number{font-size:2rem;font-weight:700;color:#1877f2;}
+        .stat-label{font-size:0.85rem;color:#475569;}
+        .add-button,.action-btn{background:#1877f2;color:white;border:none;border-radius:40px;padding:0.6rem 1rem;font-weight:600;cursor:pointer;margin-bottom:1rem;}
+        .add-button{width:100%;padding:0.8rem;}
+        .action-btn{padding:0.3rem 0.8rem;margin:0;}
+        .delete-btn{background:#ef4444;color:white;border:none;border-radius:40px;padding:0.3rem 0.8rem;cursor:pointer;}
+        .bus-item,.station-item,.booking-item{background:#f8fafc;border-radius:20px;padding:1rem;margin-bottom:0.75rem;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem;}
+        .search-bar{display:flex;gap:0.5rem;margin-bottom:1rem;}
+        .search-bar input{flex:1;padding:0.6rem;border-radius:40px;border:1px solid #cbd5e1;}
+        .filter-select{padding:0.6rem;border-radius:40px;border:1px solid #cbd5e1;}
+        .modal-overlay{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);align-items:center;justify-content:center;z-index:200;}
+        .modal-card{background:white;border-radius:32px;padding:1.5rem;width:90%;max-width:450px;}
+        input,button{font-family:inherit;}
+        .password-wrapper{position:relative;width:100%;margin-bottom:1rem;}
+        .password-wrapper input{width:100%;padding:0.8rem;border-radius:40px;border:1px solid #ccc;padding-right:3rem;}
+        .toggle-eye{position:absolute;right:1rem;top:50%;transform:translateY(-50%);cursor:pointer;}
+        .error-border{border-color:#ef4444 !important;}
+        .loading-bar-container{position:fixed;top:0;left:0;width:100%;height:3px;background:transparent;z-index:10000;pointer-events:none;}
+        .loading-bar{width:0%;height:100%;background:#1877f2;transition:width 0.3s ease;}
+        @media (max-width:640px){.stats-grid{grid-template-columns:1fr 1fr;}}
+    </style>
+    <script src="https://www.gstatic.com/firebasejs/10.5.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.5.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.5.0/firebase-firestore-compat.js"></script>
+</head>
+<body>
+<div class="loading-bar-container" id="loadingBarContainer" style="display: none;"><div class="loading-bar" id="loadingBar"></div></div>
+<div class="header" id="mainHeader">
+    <div class="logo-area"><div class="logo-img" id="headerLogo">🚌</div><span class="site-title" id="headerTitle">BusTicket</span></div>
+</div>
+
+<!-- Login choice -->
+<div id="loginChoicePanel" class="panel active-panel">
+    <div class="card" style="max-width:400px; margin:2rem auto; text-align:center;">
+        <h2>Welcome to BusTicket</h2>
+        <div style="display:flex; gap:1rem; margin-top:2rem;">
+            <button onclick="showMainCompanyLogin()" style="flex:1; background:#1877f2; border:none; padding:1rem; border-radius:40px; color:white;">Main Company</button>
+            <button onclick="showStationLogin()" style="flex:1; background:#1877f2; border:none; padding:1rem; border-radius:40px; color:white;">Station</button>
+        </div>
+    </div>
+</div>
+
+<!-- Main company login -->
+<div id="mainCompanyLoginPanel" class="panel">
+    <div class="card" style="max-width:400px; margin:2rem auto;">
+        <h2>Main Company Login</h2>
+        <input type="email" id="mcEmail" placeholder="Email" style="width:100%; padding:0.8rem; margin-bottom:1rem; border-radius:40px;">
+        <div class="password-wrapper"><input type="password" id="mcPassword" placeholder="Password"><span class="toggle-eye" onclick="toggleMcPassword()">👁️</span></div>
+        <button onclick="loginMainCompany()" style="background:#1877f2; border:none; padding:0.8rem; border-radius:40px; color:white; width:100%;">Login</button>
+        <button onclick="goBackToChoice()" style="background:#e2e8f0; border:none; padding:0.6rem; border-radius:40px; margin-top:0.5rem; width:100%;">Back</button>
+    </div>
+</div>
+
+<!-- Station login (list of stations) -->
+<div id="stationLoginPanel" class="panel">
+    <div class="card">
+        <h3>Select Station</h3>
+        <div class="search-bar"><input type="text" id="stationSearch" placeholder="Search station name..."><button onclick="renderStationList()" style="background:#1877f2; border:none; padding:0.6rem 1rem; border-radius:40px;">🔍</button></div>
+        <div id="stationsListContainer"></div>
+        <button onclick="goBackToChoice()" style="background:#e2e8f0; border:none; padding:0.6rem; border-radius:40px; margin-top:1rem; width:100%;">Back</button>
+    </div>
+</div>
+
+<!-- Main Company Dashboard -->
+<div id="mainCompanyDashboard" style="display:none;">
+    <div class="bottom-nav">
+        <button class="nav-item" data-panel="mcHome">Home</button>
+        <button class="nav-item" data-panel="mcBookings">Bookings</button>
+        <button class="nav-item" data-panel="mcBuses">Buses</button>
+        <button class="nav-item" data-panel="mcSettings">Settings</button>
+        <button class="nav-item" onclick="logout()">Logout</button>
+    </div>
+    <div id="mcHomePanel" class="panel active-panel">
+        <div class="card">
+            <div class="stats-grid" id="mcStats"></div>
+            <button class="add-button" id="addStationBtnMain">+ Add Station</button>
+            <h3>Stations</h3>
+            <div id="mcStationsList"></div>
+        </div>
+    </div>
+    <div id="mcBookingsPanel" class="panel">
+        <div class="card">
+            <h3>Bookings by Station</h3>
+            <div class="search-bar"><select id="bookingStationSelect" class="filter-select"></select><input type="text" id="bookingSearchInput" placeholder="Search by name or code..."><button onclick="loadBookingsForStation()" style="background:#1877f2; border:none; padding:0.6rem 1rem; border-radius:40px;">Search</button></div>
+            <div id="mcBookingsList"></div>
+        </div>
+    </div>
+    <div id="mcBusesPanel" class="panel">
+        <div class="card">
+            <h3>All Buses</h3>
+            <div class="search-bar"><input type="text" id="busSearchInput" placeholder="Search by route..."><button onclick="loadAllBuses()" style="background:#1877f2; border:none; padding:0.6rem 1rem; border-radius:40px;">Search</button></div>
+            <div id="mcBusesList"></div>
+        </div>
+    </div>
+    <div id="mcSettingsPanel" class="panel">
+        <div class="card"><h3>Company Profile</h3><div style="margin-bottom:1rem;"><label>Company Name</label><input type="text" id="companyNameInput" placeholder="Company Name" style="width:100%; padding:0.6rem; border-radius:40px;"></div><div style="margin-bottom:1rem;"><label>Company Logo (URL)</label><input type="text" id="companyLogoInput" placeholder="Logo URL or emoji" style="width:100%; padding:0.6rem; border-radius:40px;"></div><button onclick="updateCompanyProfile()" style="background:#1877f2; border:none; padding:0.6rem; border-radius:40px;">Save Profile</button></div>
+        <div class="card"><h3>Account Security</h3><div style="margin-bottom:1rem;"><label>New Password</label><input type="password" id="mcNewPassword" placeholder="New password" style="width:100%; padding:0.6rem; border-radius:40px;"></div><div style="margin-bottom:1rem;"><label>Confirm Password</label><input type="password" id="mcConfirmPassword" placeholder="Confirm" style="width:100%; padding:0.6rem; border-radius:40px;"></div><button onclick="updateMcPassword()" style="background:#1877f2; border:none; padding:0.6rem; border-radius:40px;">Change Password</button></div>
+        <div class="card"><h3>Manage Stations</h3><div id="deleteStationsList"></div></div>
+    </div>
+</div>
+
+<!-- Station Dashboard -->
+<div id="stationDashboard" style="display:none;">
+    <div class="bottom-nav">
+        <button class="nav-item" data-panel="stationHome">Home</button>
+        <button class="nav-item" data-panel="stationRecords">Records</button>
+        <button class="nav-item" onclick="logout()">Logout</button>
+    </div>
+    <div id="stationHomePanel" class="panel active-panel">
+        <div class="card"><div class="stats-grid" id="stationStats"></div><button class="add-button" id="stationAddBusBtn">+ Add Bus</button><h3>Your Buses</h3><div id="stationBusesList"></div></div>
+    </div>
+    <div id="stationRecordsPanel" class="panel">
+        <div class="card"><h3>Booking Records</h3><div class="search-bar"><input type="text" id="stationBookingSearch" placeholder="Search by name or code..."><button onclick="loadStationBookings()" style="background:#1877f2; border:none; padding:0.6rem 1rem; border-radius:40px;">Search</button></div><div id="stationBookingsList"></div></div>
+    </div>
+</div>
+
+<!-- Modals -->
+<div id="addStationModal" class="modal-overlay"><div class="modal-card"><h3>Add Station</h3><input type="text" id="stationNameAdd" placeholder="Station Name" style="width:100%; padding:0.6rem; margin-bottom:0.8rem; border-radius:40px;"><input type="email" id="stationEmailAdd" placeholder="Station Email" style="width:100%; padding:0.6rem; margin-bottom:0.8rem; border-radius:40px;"><input type="password" id="stationPasswordAdd" placeholder="Temporary Password" style="width:100%; padding:0.6rem; margin-bottom:0.8rem; border-radius:40px;"><div style="display:flex; gap:0.5rem; justify-content:flex-end;"><button onclick="closeAddStationModal()" style="background:#e2e8f0; border:none; padding:0.5rem 1rem; border-radius:40px;">Cancel</button><button onclick="addStation()" style="background:#1877f2; border:none; padding:0.5rem 1rem; border-radius:40px; color:white;">Add</button></div></div></div>
+<div id="addBusModal" class="modal-overlay"><div class="modal-card"><h3>Add Bus</h3><input type="text" id="busFrom" placeholder="From" style="width:100%; padding:0.6rem; margin-bottom:0.8rem; border-radius:40px;"><input type="text" id="busTo" placeholder="To" style="width:100%; padding:0.6rem; margin-bottom:0.8rem; border-radius:40px;"><input type="time" id="busDeparture" style="width:100%; padding:0.6rem; margin-bottom:0.8rem; border-radius:40px;"><input type="text" id="busDuration" placeholder="Duration" style="width:100%; padding:0.6rem; margin-bottom:0.8rem; border-radius:40px;"><input type="number" id="busPrice" placeholder="Price per seat" style="width:100%; padding:0.6rem; margin-bottom:0.8rem; border-radius:40px;"><input type="number" id="busTotalSeats" placeholder="Total seats" style="width:100%; padding:0.6rem; margin-bottom:0.8rem; border-radius:40px;"><div style="display:flex; gap:0.5rem; justify-content:flex-end;"><button onclick="closeAddBusModal()" style="background:#e2e8f0; border:none; padding:0.5rem 1rem; border-radius:40px;">Cancel</button><button onclick="confirmAddBus()" style="background:#1877f2; border:none; padding:0.5rem 1rem; border-radius:40px; color:white;">Add</button></div></div></div>
+
+<script>
+    const firebaseConfig = {
+        apiKey: "AIzaSyCwChD7c9qEyMJmqYx-EdPaa-eu553EG3w",
+        authDomain: "bus-ticket-live.firebaseapp.com",
+        projectId: "bus-ticket-live",
+        storageBucket: "bus-ticket-live.firebasestorage.app",
+        messagingSenderId: "139084281645",
+        appId: "1:139084281645:web:41f0fd868b3bb7ee2c05a4"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+    const db = firebase.firestore();
+
+    let currentUser = null;
+    let currentCompanyId = null;
+    let currentStationId = null;
+    let allStations = [];
+
+    function showLoadingBar() {
+        const container = document.getElementById('loadingBarContainer');
+        const bar = document.getElementById('loadingBar');
+        container.style.display = 'block';
+        bar.style.width = '0%';
+        setTimeout(() => { bar.style.width = '70%'; }, 10);
+    }
+    function hideLoadingBar() {
+        const bar = document.getElementById('loadingBar');
+        bar.style.width = '100%';
+        setTimeout(() => {
+            document.getElementById('loadingBarContainer').style.display = 'none';
+            bar.style.width = '0%';
+        }, 300);
+    }
+
+    async function loadGlobalBrand() {
+        const doc = await db.collection('settings').doc('brand').get();
+        if (doc.exists) {
+            const data = doc.data();
+            document.getElementById('headerTitle').innerText = data.name || 'BusTicket';
+            const logo = data.logo || '🚌';
+            const headerLogo = document.getElementById('headerLogo');
+            if (logo.startsWith('http')) {
+                headerLogo.style.backgroundImage = `url('${logo}')`;
+                headerLogo.style.backgroundSize = 'cover';
+                headerLogo.innerText = '';
+            } else {
+                headerLogo.style.backgroundImage = '';
+                headerLogo.innerText = logo;
+            }
+        }
+    }
+
+    function showMainCompanyLogin() {
+        document.querySelectorAll('.panel').forEach(p => p.classList.remove('active-panel'));
+        document.getElementById('mainCompanyLoginPanel').classList.add('active-panel');
+    }
+    function showStationLogin() {
+        document.querySelectorAll('.panel').forEach(p => p.classList.remove('active-panel'));
+        document.getElementById('stationLoginPanel').classList.add('active-panel');
+        renderStationList();
+    }
+    function goBackToChoice() {
+        document.querySelectorAll('.panel').forEach(p => p.classList.remove('active-panel'));
+        document.getElementById('loginChoicePanel').classList.add('active-panel');
+    }
+    function toggleMcPassword() {
+        const field = document.getElementById('mcPassword');
+        field.type = field.type === 'password' ? 'text' : 'password';
+    }
+
+    async function loginMainCompany() {
+        const email = document.getElementById('mcEmail').value;
+        const pwd = document.getElementById('mcPassword').value;
+        const emailInput = document.getElementById('mcEmail');
+        const pwdInput = document.getElementById('mcPassword');
+        try {
+            const cred = await auth.signInWithEmailAndPassword(email, pwd);
+            currentUser = cred.user;
+            const companyDoc = await db.collection('companies').doc(currentUser.uid).get();
+            if (!companyDoc.exists || companyDoc.data().type !== 'main') throw new Error('Not a main company');
+            currentCompanyId = currentUser.uid;
+            document.getElementById('mainCompanyLoginPanel').classList.remove('active-panel');
+            document.getElementById('mainCompanyDashboard').style.display = 'block';
+            await loadGlobalBrand();
+            await loadCompanyProfile();
+            await loadMainStats();
+            await loadStationsForMain();
+            await loadAllBuses();
+            switchMcPanel('mcHome');
+        } catch (err) {
+            emailInput.classList.add('error-border');
+            pwdInput.classList.add('error-border');
+            setTimeout(() => {
+                emailInput.classList.remove('error-border');
+                pwdInput.classList.remove('error-border');
+            }, 2000);
+        }
+    }
+
+    async function loadCompanyProfile() {
+        const doc = await db.collection('companies').doc(currentCompanyId).get();
+        if (doc.exists) {
+            document.getElementById('companyNameInput').value = doc.data().name || '';
+            document.getElementById('companyLogoInput').value = doc.data().logo || '';
+        }
+    }
+    async function updateCompanyProfile() {
+        const name = document.getElementById('companyNameInput').value.trim();
+        const logo = document.getElementById('companyLogoInput').value.trim();
+        await db.collection('companies').doc(currentCompanyId).update({ name, logo });
+        alert('Profile updated');
+    }
+    async function updateMcPassword() {
+        const newPwd = document.getElementById('mcNewPassword').value;
+        const confirm = document.getElementById('mcConfirmPassword').value;
+        if (!newPwd) { alert("Enter new password"); return; }
+        if (newPwd !== confirm) { alert("Passwords don't match"); return; }
+        showLoadingBar();
+        try {
+            await currentUser.updatePassword(newPwd);
+            alert("Password updated");
+            document.getElementById('mcNewPassword').value = '';
+            document.getElementById('mcConfirmPassword').value = '';
+        } catch (err) { alert("Error: "+err.message); }
+        hideLoadingBar();
+    }
+
+    async function loadMainStats() {
+        const stationsSnap = await db.collection('stations').where('companyId', '==', currentCompanyId).get();
+        let busesCount = 0, bookingsCount = 0;
+        for (const stationDoc of stationsSnap.docs) {
+            const busesSnap = await db.collection('buses').where('stationId', '==', stationDoc.id).get();
+            busesCount += busesSnap.size;
+            const bookingsSnap = await db.collection('bookings').where('stationId', '==', stationDoc.id).get();
+            bookingsCount += bookingsSnap.size;
+        }
+        document.getElementById('mcStats').innerHTML = `
+            <div class="stat-card"><div class="stat-number">${stationsSnap.size}</div><div class="stat-label">Stations</div></div>
+            <div class="stat-card"><div class="stat-number">${busesCount}</div><div class="stat-label">Buses</div></div>
+            <div class="stat-card"><div class="stat-number">${bookingsCount}</div><div class="stat-label">Bookings</div></div>
+        `;
+    }
+
+    async function loadStationsForMain() {
+        showLoadingBar();
+        const snap = await db.collection('stations').where('companyId', '==', currentCompanyId).get();
+        allStations = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        const container = document.getElementById('mcStationsList');
+        if (allStations.length === 0) container.innerHTML = '<div>No stations yet.</div>';
+        else {
+            let html = '';
+            for (const s of allStations) {
+                const busesSnap = await db.collection('buses').where('stationId', '==', s.id).get();
+                const bookingsSnap = await db.collection('bookings').where('stationId', '==', s.id).get();
+                html += `<div class="station-item"><div><strong>${escapeHtml(s.name)}</strong><br>Buses: ${busesSnap.size} | Bookings: ${bookingsSnap.size}</div><button class="delete-btn" onclick="deleteStationById('${s.id}')">Delete</button></div>`;
+            }
+            container.innerHTML = html;
+        }
+        const deleteContainer = document.getElementById('deleteStationsList');
+        deleteContainer.innerHTML = allStations.map(s => `<div class="station-item"><div>${escapeHtml(s.name)}</div><button class="delete-btn" onclick="deleteStationById('${s.id}')">Delete</button></div>`).join('');
+        const select = document.getElementById('bookingStationSelect');
+        select.innerHTML = '<option value="">-- All stations --</option>' + allStations.map(s => `<option value="${s.id}">${escapeHtml(s.name)}</option>`).join('');
+        hideLoadingBar();
+    }
+
+    async function deleteStationById(stationId) {
+        if (confirm("Delete this station and all its buses & bookings?")) {
+            showLoadingBar();
+            const busesSnap = await db.collection('buses').where('stationId', '==', stationId).get();
+            for (const busDoc of busesSnap.docs) {
+                const bookingsSnap = await db.collection('bookings').where('busId', '==', busDoc.id).get();
+                for (const bk of bookingsSnap.docs) await db.collection('bookings').doc(bk.id).delete();
+                await db.collection('buses').doc(busDoc.id).delete();
+            }
+            await db.collection('stations').doc(stationId).delete();
+            await loadStationsForMain();
+            await loadMainStats();
+            hideLoadingBar();
+        }
+    }
+
+    async function addStation() {
+        const name = document.getElementById('stationNameAdd').value.trim();
+        const email = document.getElementById('stationEmailAdd').value.trim();
+        const password = document.getElementById('stationPasswordAdd').value.trim();
+        if (!name || !email || !password) { alert("Fill all fields"); return; }
+        showLoadingBar();
+        try {
+            const userCred = await auth.createUserWithEmailAndPassword(email, password);
+            await db.collection('stations').doc(userCred.user.uid).set({
+                name, email, userId: userCred.user.uid, companyId: currentCompanyId
+            });
+            alert("Station added");
+            closeAddStationModal();
+            await loadStationsForMain();
+            await loadMainStats();
+        } catch (err) { alert("Error: "+err.message); }
+        hideLoadingBar();
+    }
+
+    async function loadAllBuses() {
+        showLoadingBar();
+        const searchTerm = document.getElementById('busSearchInput').value.toLowerCase();
+        let buses = [];
+        const stationsSnap = await db.collection('stations').where('companyId', '==', currentCompanyId).get();
+        for (const stationDoc of stationsSnap.docs) {
+            const busesSnap = await db.collection('buses').where('stationId', '==', stationDoc.id).get();
+            for (const busDoc of busesSnap.docs) {
+                const bus = busDoc.data();
+                buses.push({ id: busDoc.id, stationName: stationDoc.data().name, ...bus });
+            }
+        }
+        if (searchTerm) buses = buses.filter(b => (b.from+'→'+b.to).toLowerCase().includes(searchTerm));
+        const container = document.getElementById('mcBusesList');
+        if (buses.length === 0) container.innerHTML = '<div>No buses found.</div>';
+        else {
+            container.innerHTML = buses.map(b => `<div class="bus-item"><div><strong>${b.stationName}</strong><br>${b.from} → ${b.to} | ${b.departure} | Seats: ${b.availableSeats}/${b.totalSeats} | $${b.price}</div><button class="delete-btn" onclick="deleteBusById('${b.id}')">Delete</button></div>`).join('');
+        }
+        hideLoadingBar();
+    }
+
+    async function deleteBusById(busId) {
+        if (confirm("Delete this bus? All associated bookings will be deleted.")) {
+            showLoadingBar();
+            const bookingsSnap = await db.collection('bookings').where('busId', '==', busId).get();
+            for (const bk of bookingsSnap.docs) await db.collection('bookings').doc(bk.id).delete();
+            await db.collection('buses').doc(busId).delete();
+            await loadAllBuses();
+            hideLoadingBar();
+        }
+    }
+
+    async function loadBookingsForStation() {
+        showLoadingBar();
+        const stationId = document.getElementById('bookingStationSelect').value;
+        const searchTerm = document.getElementById('bookingSearchInput').value.toLowerCase();
+        let query = db.collection('bookings');
+        if (stationId) query = query.where('stationId', '==', stationId);
+        const snapshot = await query.orderBy('createdAt', 'desc').get();
+        let bookings = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        if (searchTerm) bookings = bookings.filter(b => b.passengerName.toLowerCase().includes(searchTerm) || b.code.toLowerCase().includes(searchTerm));
+        const container = document.getElementById('mcBookingsList');
+        if (bookings.length === 0) container.innerHTML = '<div>No bookings found.</div>';
+        else {
+            container.innerHTML = bookings.map(b => `<div class="booking-item"><div><strong>${escapeHtml(b.passengerName)}</strong><br>${b.phone}<br>Code: ${b.code}<br>Date: ${new Date(b.createdAt).toLocaleDateString()}<br>Amount: $${b.total}</div><div>${b.presented ? '✅' : '⏳'}</div></div>`).join('');
+        }
+        hideLoadingBar();
+    }
+
+    // Station login list
+    async function renderStationList() {
+        showLoadingBar();
+        const search = document.getElementById('stationSearch').value.toLowerCase();
+        const stationsSnap = await db.collection('stations').get();
+        let stations = stationsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        if (search) stations = stations.filter(s => s.name.toLowerCase().includes(search));
+        const container = document.getElementById('stationsListContainer');
+        container.innerHTML = stations.length ? stations.map(s => `<div class="station-item" style="cursor:pointer;" onclick="selectStation('${s.id}')"><div><strong>${escapeHtml(s.name)}</strong></div></div>`).join('') : '<div>No stations found</div>';
+        hideLoadingBar();
+    }
+
+    async function selectStation(stationId) {
+        currentStationId = stationId;
+        const stationDoc = await db.collection('stations').doc(stationId).get();
+        const stationData = stationDoc.data();
+        const companyDoc = await db.collection('companies').doc(stationData.companyId).get();
+        const companyData = companyDoc.exists ? companyDoc.data() : {};
+        document.getElementById('headerTitle').innerText = companyData.name || 'BusTicket';
+        const logo = companyData.logo || '🚌';
+        const headerLogo = document.getElementById('headerLogo');
+        if (logo.startsWith('http')) {
+            headerLogo.style.backgroundImage = `url('${logo}')`;
+            headerLogo.style.backgroundSize = 'cover';
+            headerLogo.innerText = '';
+        } else {
+            headerLogo.style.backgroundImage = '';
+            headerLogo.innerText = logo;
+        }
+        document.getElementById('stationLoginPanel').classList.remove('active-panel');
+        document.getElementById('stationDashboard').style.display = 'block';
+        await loadStationStats();
+        await loadStationBuses();
+        await loadStationBookings();
+        switchStationPanel('stationHome');
+    }
+
+    async function loadStationStats() {
+        const busesSnap = await db.collection('buses').where('stationId', '==', currentStationId).get();
+        const bookingsSnap = await db.collection('bookings').where('stationId', '==', currentStationId).get();
+        document.getElementById('stationStats').innerHTML = `
+            <div class="stat-card"><div class="stat-number">${busesSnap.size}</div><div class="stat-label">Buses</div></div>
+            <div class="stat-card"><div class="stat-number">${bookingsSnap.size}</div><div class="stat-label">Bookings</div></div>
+        `;
+    }
+
+    async function loadStationBuses() {
+        showLoadingBar();
+        const snap = await db.collection('buses').where('stationId', '==', currentStationId).get();
+        const container = document.getElementById('stationBusesList');
+        if (snap.empty) container.innerHTML = '<div>No buses added yet.</div>';
+        else {
+            let html = '';
+            snap.forEach(doc => {
+                const b = doc.data();
+                html += `<div class="bus-item"><div><strong>${b.from} → ${b.to}</strong><br>Seats: ${b.availableSeats}/${b.totalSeats} | Price: $${b.price}</div><button class="delete-btn" onclick="deleteStationBus('${doc.id}')">Delete</button></div>`;
+            });
+            container.innerHTML = html;
+        }
+        hideLoadingBar();
+    }
+
+    async function deleteStationBus(busId) {
+        if (confirm("Delete this bus? All its bookings will be deleted.")) {
+            showLoadingBar();
+            const bookingsSnap = await db.collection('bookings').where('busId', '==', busId).get();
+            for (const bk of bookingsSnap.docs) await db.collection('bookings').doc(bk.id).delete();
+            await db.collection('buses').doc(busId).delete();
+            await loadStationBuses();
+            await loadStationStats();
+            await loadStationBookings();
+            hideLoadingBar();
+        }
+    }
+
+    async function loadStationBookings() {
+        showLoadingBar();
+        const searchTerm = document.getElementById('stationBookingSearch').value.toLowerCase();
+        let query = db.collection('bookings').where('stationId', '==', currentStationId).orderBy('createdAt', 'desc');
+        const snapshot = await query.get();
+        let bookings = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        if (searchTerm) bookings = bookings.filter(b => b.passengerName.toLowerCase().includes(searchTerm) || b.code.toLowerCase().includes(searchTerm));
+        const container = document.getElementById('stationBookingsList');
+        if (bookings.length === 0) container.innerHTML = '<div>No bookings found.</div>';
+        else {
+            container.innerHTML = bookings.map(b => `<div class="booking-item"><div><strong>${escapeHtml(b.passengerName)}</strong><br>${b.phone}<br>Code: ${b.code}<br>Date: ${new Date(b.createdAt).toLocaleDateString()}<br>Amount: $${b.total}</div><div>${b.presented ? '✅' : `<button class="action-btn" onclick="markStationBookingPresented('${b.id}')">Mark Presented</button>`}</div></div>`).join('');
+        }
+        hideLoadingBar();
+    }
+
+    async function markStationBookingPresented(bookingId) {
+        showLoadingBar();
+        await db.collection('bookings').doc(bookingId).update({ presented: true });
+        await loadStationBookings();
+        hideLoadingBar();
+    }
+
+    async function confirmAddBus() {
+        const from = document.getElementById('busFrom').value.trim();
+        const to = document.getElementById('busTo').value.trim();
+        const departure = document.getElementById('busDeparture').value;
+        const duration = document.getElementById('busDuration').value.trim();
+        const price = parseInt(document.getElementById('busPrice').value);
+        const totalSeats = parseInt(document.getElementById('busTotalSeats').value);
+        if (!from || !to || !price || !totalSeats) { alert("Fill required fields"); return; }
+        showLoadingBar();
+        const stationDoc = await db.collection('stations').doc(currentStationId).get();
+        const newBus = { stationId: currentStationId, company: stationDoc.data().name, from, to, departure, duration, price, totalSeats, availableSeats: totalSeats, suspended: false, createdAt: new Date().toISOString() };
+        await db.collection('buses').add(newBus);
+        closeAddBusModal();
+        await loadStationBuses();
+        await loadStationStats();
+        hideLoadingBar();
+    }
+
+    function switchMcPanel(panel) {
+        showLoadingBar();
+        document.querySelectorAll('#mainCompanyDashboard .panel').forEach(p => p.classList.remove('active-panel'));
+        if (panel === 'mcHome') document.getElementById('mcHomePanel').classList.add('active-panel');
+        else if (panel === 'mcBookings') document.getElementById('mcBookingsPanel').classList.add('active-panel');
+        else if (panel === 'mcBuses') document.getElementById('mcBusesPanel').classList.add('active-panel');
+        else if (panel === 'mcSettings') document.getElementById('mcSettingsPanel').classList.add('active-panel');
+        document.querySelectorAll('#mainCompanyDashboard .nav-item').forEach(btn => btn.classList.remove('active'));
+        document.querySelector(`#mainCompanyDashboard .nav-item[data-panel="${panel}"]`).classList.add('active');
+        if (panel === 'mcHome') { loadMainStats(); loadStationsForMain(); }
+        else if (panel === 'mcBuses') loadAllBuses();
+        else if (panel === 'mcBookings') loadBookingsForStation();
+        hideLoadingBar();
+    }
+    function switchStationPanel(panel) {
+        showLoadingBar();
+        document.querySelectorAll('#stationDashboard .panel').forEach(p => p.classList.remove('active-panel'));
+        if (panel === 'stationHome') document.getElementById('stationHomePanel').classList.add('active-panel');
+        else if (panel === 'stationRecords') document.getElementById('stationRecordsPanel').classList.add('active-panel');
+        document.querySelectorAll('#stationDashboard .nav-item').forEach(btn => btn.classList.remove('active'));
+        document.querySelector(`#stationDashboard .nav-item[data-panel="${panel}"]`).classList.add('active');
+        if (panel === 'stationHome') { loadStationStats(); loadStationBuses(); }
+        else if (panel === 'stationRecords') loadStationBookings();
+        hideLoadingBar();
+    }
+
+    function logout() { auth.signOut(); location.reload(); }
+    function openAddStationModal() { document.getElementById('addStationModal').style.display = 'flex'; }
+    function closeAddStationModal() { document.getElementById('addStationModal').style.display = 'none'; }
+    function openAddBusModal() { document.getElementById('addBusModal').style.display = 'flex'; }
+    function closeAddBusModal() { document.getElementById('addBusModal').style.display = 'none'; }
+    function escapeHtml(str) { if (!str) return ''; return str.replace(/[&<>]/g, m => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;' }[m] || m)); }
+
+    document.getElementById('addStationBtnMain').addEventListener('click', openAddStationModal);
+    document.getElementById('stationAddBusBtn').addEventListener('click', openAddBusModal);
+    document.getElementById('stationSearch').addEventListener('input', renderStationList);
+    document.getElementById('busSearchInput').addEventListener('input', loadAllBuses);
+    document.getElementById('bookingSearchInput').addEventListener('input', loadBookingsForStation);
+    document.getElementById('stationBookingSearch').addEventListener('input', loadStationBookings);
+    loadGlobalBrand();
+</script>
+</body>
+</html>
